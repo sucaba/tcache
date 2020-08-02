@@ -2,31 +2,29 @@ pub mod typeset;
 
 use crate::typeset::TypeSet;
 use std::any::Any;
-use std::cell::Cell;
+use std::cell::RefCell;
 use std::sync::Arc;
 
 pub struct TypeCache {
-    cell: Cell<TypeSet>,
+    cell: RefCell<TypeSet>,
 }
 
 impl TypeCache {
     pub fn new() -> Self {
         Self {
-            cell: Cell::new(TypeSet::new()),
+            cell: RefCell::new(TypeSet::new()),
         }
     }
 
     pub fn get<T: Any>(&self) -> Option<Arc<T>> {
-        let tset = self.cell.take();
+        let tset = self.cell.borrow();
         let result = tset.get::<Arc<T>>().cloned();
-        self.cell.set(tset);
         result
     }
 
     pub fn insert_ref<T: Any>(&self, value: Arc<T>) {
-        let mut tset = self.cell.take();
+        let mut tset = self.cell.borrow_mut();
         tset.insert(value);
-        self.cell.set(tset);
     }
 
     pub fn insert<T: Any>(&self, value: T) -> Arc<T> {
@@ -46,10 +44,8 @@ impl TypeCache {
     where
         F: FnOnce() -> Arc<T>,
     {
-        let mut tset = self.cell.take();
-        let result = tset.ensure(|| f()).clone();
-        self.cell.set(tset);
-        result
+        let mut tset = self.cell.borrow_mut();
+        tset.ensure(f).clone()
     }
 }
 
