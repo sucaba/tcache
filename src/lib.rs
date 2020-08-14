@@ -1,51 +1,38 @@
 pub mod typeset;
 
-use crate::typeset::TypeSet;
+use crate::typeset::SingletonSet;
 use std::any::Any;
 use std::cell::RefCell;
-use std::sync::Arc;
 
-pub struct TypeCache {
-    cell: RefCell<TypeSet>,
+pub struct SingletonCache {
+    cell: RefCell<SingletonSet>,
 }
 
-impl TypeCache {
+impl SingletonCache {
     pub fn new() -> Self {
         Self {
-            cell: RefCell::new(TypeSet::new()),
+            cell: RefCell::new(SingletonSet::new()),
         }
     }
 
-    pub fn get<T: Any>(&self) -> Option<Arc<T>> {
-        let tset = self.cell.borrow();
-        let result = tset.get::<Arc<T>>().cloned();
-        result
+    pub fn get<T: Any + Clone>(&self) -> Option<T> {
+        self.cell.borrow().get::<T>().cloned()
     }
 
-    pub fn insert_ref<T: Any>(&self, value: Arc<T>) {
-        let mut tset = self.cell.borrow_mut();
-        tset.insert(value);
+    pub fn insert<T: Any>(&self, value: T) {
+        self.cell.borrow_mut().insert(value);
     }
 
-    pub fn insert<T: Any>(&self, value: T) -> Arc<T> {
-        let result = Arc::new(value);
-        self.insert_ref(result.clone());
-        result
+    pub fn remove<T: Any>(&self) {
+        self.cell.borrow_mut().remove::<T>();
     }
 
-    pub fn ensure<T: Any, F>(&self, f: F) -> Arc<T>
+    pub fn ensure<T: Any, F>(&self, f: F) -> T
     where
         F: FnOnce() -> T,
+        T: Clone,
     {
-        self.ensure_ref(|| Arc::new(f()))
-    }
-
-    pub fn ensure_ref<T: Any, F>(&self, f: F) -> Arc<T>
-    where
-        F: FnOnce() -> Arc<T>,
-    {
-        let mut tset = self.cell.borrow_mut();
-        tset.ensure(f).clone()
+        self.cell.borrow_mut().ensure(f).clone()
     }
 }
 
@@ -53,7 +40,7 @@ impl TypeCache {
 mod tests {
     use super::*;
 
-    #[derive(PartialEq, Debug, Default)]
+    #[derive(PartialEq, Debug, Default, Clone)]
     struct MyEntry {
         pub name: String,
     }
@@ -66,20 +53,17 @@ mod tests {
 
     #[test]
     fn it_should_ensure_and_get() {
-        let sut = TypeCache::new();
-        let ref1 = sut.ensure(|| sample(1));
-        assert_eq!(*ref1, sample(1));
-        assert_eq!(sut.get::<MyEntry>().as_deref(), Some(&sample(1)));
+        let sut = SingletonCache::new();
+        let clone1 = sut.ensure(|| sample(1));
+        assert_eq!(clone1, sample(1));
+        assert_eq!(sut.get::<MyEntry>(), Some(sample(1)));
     }
 
     #[test]
     fn it_should_insert_and_get() {
-        let sut = TypeCache::new();
-        let ref1 = sut.insert(sample(1));
-        assert_eq!(*ref1, sample(1));
-
-        let ref2 = sut.insert(sample(2));
-        assert_eq!(*ref2, sample(2));
-        assert_eq!(sut.get::<MyEntry>().as_deref(), Some(&sample(2)));
+        let sut = SingletonCache::new();
+        sut.insert(sample(1));
+        sut.insert(sample(2));
+        assert_eq!(sut.get::<MyEntry>(), Some(sample(2)));
     }
 }

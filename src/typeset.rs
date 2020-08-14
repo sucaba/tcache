@@ -2,11 +2,11 @@ use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
 #[derive(Default)]
-pub struct TypeSet {
+pub struct SingletonSet {
     entries: HashMap<TypeId, Box<dyn Any>>,
 }
 
-impl TypeSet {
+impl SingletonSet {
     pub fn new() -> Self {
         Self {
             entries: HashMap::new(),
@@ -42,6 +42,11 @@ impl TypeSet {
             .and_modify(|b| f(b.downcast_mut().expect("unable to cast")));
     }
 
+    pub fn remove<T: Any>(&mut self) -> bool {
+        let key = TypeId::of::<T>();
+        self.entries.remove(&key).is_some()
+    }
+
     pub fn ensure<T: Any, F>(&mut self, f: F) -> &mut T
     where
         F: FnOnce() -> T,
@@ -71,7 +76,7 @@ mod tests {
 
     #[test]
     fn it_can_insert_and_get() {
-        let mut sut = TypeSet::new();
+        let mut sut = SingletonSet::new();
 
         sut.insert(sample(1));
 
@@ -82,7 +87,7 @@ mod tests {
 
     #[test]
     fn it_cannot_get_when_not_stored() {
-        let sut = TypeSet::new();
+        let sut = SingletonSet::new();
 
         let item_ref = sut.get::<MyEntry>();
 
@@ -91,7 +96,7 @@ mod tests {
 
     #[test]
     fn it_can_update() {
-        let mut sut = TypeSet::new();
+        let mut sut = SingletonSet::new();
 
         sut.insert(sample(1));
         sut.update(|mr| *mr = sample(2));
@@ -101,7 +106,7 @@ mod tests {
 
     #[test]
     fn it_can_ensure() {
-        let mut sut = TypeSet::new();
+        let mut sut = SingletonSet::new();
 
         sut.ensure(|| sample(1));
         assert_eq!(sut.get::<MyEntry>(), Some(&sample(1)));
@@ -114,7 +119,7 @@ mod tests {
     fn it_can_be_used_as_cache() {
         use std::cell::Cell;
 
-        let mut sut = TypeSet::new();
+        let mut sut = SingletonSet::new();
 
         let entry = sut.ensure(|| Cell::new(sample(2)));
         entry.set(sample(1));
